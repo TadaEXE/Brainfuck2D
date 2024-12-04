@@ -17,9 +17,9 @@ set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/antlr/antlr-4.13.2-complete.jar
 
 find_package(ANTLR REQUIRED)
 
-antlr_target(Sugar ${CMAKE_CURRENT_SOURCE_DIR}/antlr/Sugar.g4 VISITOR)
+antlr_target(Brainfuck2D ${CMAKE_CURRENT_SOURCE_DIR}/antlr/Brainfuck2D.g4 VISITOR)
 
-include_directories(${ANTLR_Sugar_OUTPUT_DIR})
+include_directories(${ANTLR_Brainfuck2D_OUTPUT_DIR})
 # Antlr ---------------------------------------------------------
 
 
@@ -44,6 +44,6 @@ file(GLOB_RECURSE src_files
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
 )
 
-add_executable(${CMAKE_PROJECT_NAME} ${src_files} ${ANTLR_Sugar_CXX_OUTPUTS})
+add_executable(${CMAKE_PROJECT_NAME} ${src_files} ${ANTLR_Brainfuck2D_CXX_OUTPUTS})
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE antlr4_static ${llvm_libs})
