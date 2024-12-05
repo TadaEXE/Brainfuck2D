@@ -23,6 +23,7 @@ void Compiler::compile(std::string file_path)
     Brainfuck2DParser parser(&tokens);
 
     auto tree = parser.program();
+    std::cout << tree->getText() << std::endl;
 
     VisitorImpl visitor;
     visitor.visitProgram(tree);
