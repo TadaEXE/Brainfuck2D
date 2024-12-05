@@ -1,6 +1,8 @@
 grammar Brainfuck2D;
 
-program: instruction* EOF;
+program: (instruction | loop)* EOF;
+
+loop:'[' (instruction | loop)* ']'; 
 
 instruction:
 	'>'		# moveRight
@@ -9,10 +11,8 @@ instruction:
 	| '-'	# decrement
 	| '.'	# output
 	| ','	# input
-	| '['	# loopStart
-	| ']'	# loopEnd
 	| '/'	# moveUp
 	| '\\'	# moveDown;
 
-COMMENT: .~[><+\-.,/[\]\\]* -> skip;
+COMMENT: '#' ~[\r\n]* -> skip;
 WS: [ \t\r\n]+ -> skip;
