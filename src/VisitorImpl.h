@@ -51,6 +51,20 @@ class VisitorImpl : public Brainfuck2DBaseVisitor
     llvm::Value* load_x();
     llvm::Value* load_y();
 
+    void create_increment_fn();
+    void create_decrement_fn();
+    void create_move_left_fn();
+    void create_move_right_fn();
+    void create_move_down_fn();
+    void create_move_up_fn();
+
+    llvm::Function* increment_fn;
+    llvm::Function* decrement_fn;
+    llvm::Function* move_left_fn;
+    llvm::Function* move_right_fn;
+    llvm::Function* move_down_fn;
+    llvm::Function* move_up_fn;
+
     std::unique_ptr<llvm::LLVMContext> context;
     std::unique_ptr<llvm::IRBuilder<>> builder;
     std::unique_ptr<llvm::Module> module;

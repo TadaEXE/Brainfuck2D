@@ -18,69 +18,17 @@ VisitorImpl::VisitorImpl()
     init_print_fn();
     init_getchar_fn();
     init_world();
+
+    create_decrement_fn();
+    create_increment_fn();
+    create_move_down_fn();
+    create_move_left_fn();
+    create_move_right_fn();
+    create_move_up_fn();
 }
 
 VisitorImpl::~VisitorImpl()
 {
-}
-
-void VisitorImpl::create_entry_point()
-{
-    auto i32 = builder->getInt32Ty();
-    auto prototype = llvm::FunctionType::get(i32, false);
-    auto main_fn = llvm::Function::Create(prototype, llvm::Function::ExternalLinkage, "main", module.get());
-    auto body = llvm::BasicBlock::Create(*context, "entry", main_fn);
-    builder->SetInsertPoint(body);
-}
-
-void VisitorImpl::init_world()
-{
-    inner_world_type = llvm::ArrayType::get(builder->getInt32Ty(), world_size);
-    outer_world_type = llvm::ArrayType::get(inner_world_type, world_size);
-
-    // (void)module->getOrInsertGlobal("world", outer_world_type);
-    // auto world = module->getNamedGlobal("world");
-    // world->setConstant(false);
-    // world->setInitializer(0);
-
-    // (void)module->getOrInsertGlobal("x", builder->getInt32Ty());
-    // auto x = module->getNamedGlobal("x");
-    // x->setConstant(false);
-    // x->setInitializer(0);
-
-    // (void)module->getOrInsertGlobal("y", builder->getInt32Ty());
-    // auto y = module->getNamedGlobal("y");
-    // y->setConstant(false);
-    // y->setInitializer(0);
-
-    world = new llvm::GlobalVariable(*module, outer_world_type, false, llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-                                     llvm::Constant::getNullValue(outer_world_type), "world");
-
-    x = new llvm::GlobalVariable(*module, builder->getInt32Ty(), false,
-                                 llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-                                 llvm::ConstantInt::get(builder->getInt32Ty(), 0), "x");
-
-    y = new llvm::GlobalVariable(*module, builder->getInt32Ty(), false,
-                                 llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-                                 llvm::ConstantInt::get(builder->getInt32Ty(), 0), "y");
-}
-
-llvm::Value* VisitorImpl::load_world_point_ptr(llvm::Value* x, llvm::Value* y)
-{
-    auto world = module->getNamedGlobal("world");
-    return builder->CreateInBoundsGEP(outer_world_type, world, {builder->getInt32(0), x, y}, "wp_ptr");
-}
-
-llvm::Value* VisitorImpl::load_x()
-{
-    auto x = module->getNamedGlobal("x");
-    return builder->CreateLoad(builder->getInt32Ty(), x, "x");
-}
-
-llvm::Value* VisitorImpl::load_y()
-{
-    auto y = module->getNamedGlobal("y");
-    return builder->CreateLoad(builder->getInt32Ty(), y, "y");
 }
 
 std::any VisitorImpl::visitProgram(Brainfuck2DParser::ProgramContext* ctx)
@@ -102,44 +50,31 @@ std::any VisitorImpl::visitProgram(Brainfuck2DParser::ProgramContext* ctx)
 
 std::any VisitorImpl::visitMoveRight(Brainfuck2DParser::MoveRightContext* ctx)
 {
-    auto add = builder->CreateAdd(load_x(), builder->getInt32(1));
-    (void)builder->CreateStore(add, module->getNamedGlobal("x"));
+    (void)builder->CreateCall(move_right_fn);
     return visitChildren(ctx);
 }
 
 std::any VisitorImpl::visitMoveLeft(Brainfuck2DParser::MoveLeftContext* ctx)
 {
-    auto sub = builder->CreateSub(load_x(), builder->getInt32(1));
-    (void)builder->CreateStore(sub, module->getNamedGlobal("x"));
+    (void)builder->CreateCall(move_left_fn);
     return visitChildren(ctx);
 }
 
 std::any VisitorImpl::visitIncrement(Brainfuck2DParser::IncrementContext* ctx)
 {
-    auto wp_ptr = load_world_point_ptr(load_x(), load_y());
-    auto wp = builder->CreateLoad(builder->getInt32Ty(), wp_ptr, "wp");
-    auto add = builder->CreateAdd(wp, builder->getInt32(1));
-    (void)builder->CreateStore(add, wp_ptr);
-
+    (void)builder->CreateCall(increment_fn);
     return visitChildren(ctx);
 }
 
 std::any VisitorImpl::visitDecrement(Brainfuck2DParser::DecrementContext* ctx)
 {
-    auto wp_ptr = load_world_point_ptr(load_x(), load_y());
-    auto wp = builder->CreateLoad(builder->getInt32Ty(), wp_ptr, "wp");
-    auto sub = builder->CreateSub(wp, builder->getInt32(1));
-    (void)builder->CreateStore(sub, wp_ptr);
-
+    (void)builder->CreateCall(decrement_fn);
     return visitChildren(ctx);
 }
 
 std::any VisitorImpl::visitOutput(Brainfuck2DParser::OutputContext* ctx)
 {
     auto wp = load_world_point_ptr(load_x(), load_y());
-    // auto temp = builder->CreateAlloca(builder->getInt32Ty());
-    // auto add = builder->CreateAdd(builder->CreateLoad(builder->getInt32Ty(), wp), builder->getInt32(97));
-    // builder->CreateStore(add, temp);
     (void)builder->CreateCall(print_fn, {wp});
     return visitChildren(ctx);
 }
@@ -177,16 +112,40 @@ std::any VisitorImpl::visitLoop(Brainfuck2DParser::LoopContext* ctx)
 
 std::any VisitorImpl::visitMoveUp(Brainfuck2DParser::MoveUpContext* ctx)
 {
-    auto add = builder->CreateAdd(load_y(), builder->getInt32(1));
-    (void)builder->CreateStore(add, module->getNamedGlobal("y"));
+    (void)builder->CreateCall(move_up_fn);
     return visitChildren(ctx);
 }
 
 std::any VisitorImpl::visitMoveDown(Brainfuck2DParser::MoveDownContext* ctx)
 {
-    auto sub = builder->CreateSub(load_y(), builder->getInt32(1));
-    (void)builder->CreateStore(sub, module->getNamedGlobal("y"));
+    (void)builder->CreateCall(move_down_fn);
     return visitChildren(ctx);
+}
+
+void VisitorImpl::create_entry_point()
+{
+    auto i32 = builder->getInt32Ty();
+    auto prototype = llvm::FunctionType::get(i32, false);
+    auto main_fn = llvm::Function::Create(prototype, llvm::Function::ExternalLinkage, "main", module.get());
+    auto body = llvm::BasicBlock::Create(*context, "entry", main_fn);
+    builder->SetInsertPoint(body);
+}
+
+void VisitorImpl::init_world()
+{
+    inner_world_type = llvm::ArrayType::get(builder->getInt32Ty(), world_size);
+    outer_world_type = llvm::ArrayType::get(inner_world_type, world_size);
+
+    world = new llvm::GlobalVariable(*module, outer_world_type, false, llvm::GlobalValue::LinkageTypes::ExternalLinkage,
+                                     llvm::Constant::getNullValue(outer_world_type), "world");
+
+    x = new llvm::GlobalVariable(*module, builder->getInt32Ty(), false,
+                                 llvm::GlobalValue::LinkageTypes::ExternalLinkage,
+                                 llvm::ConstantInt::get(builder->getInt32Ty(), 0), "x");
+
+    y = new llvm::GlobalVariable(*module, builder->getInt32Ty(), false,
+                                 llvm::GlobalValue::LinkageTypes::ExternalLinkage,
+                                 llvm::ConstantInt::get(builder->getInt32Ty(), 0), "y");
 }
 
 void VisitorImpl::init_print_fn()
@@ -202,4 +161,99 @@ void VisitorImpl::init_getchar_fn()
     auto getchar_prototype = llvm::FunctionType::get(i32, false);
     getchar_fn = llvm::Function::Create(getchar_prototype, llvm::Function::ExternalLinkage, "getchar", *module);
 }
+
+llvm::Value* VisitorImpl::load_world_point_ptr(llvm::Value* x, llvm::Value* y)
+{
+    auto world = module->getNamedGlobal("world");
+    return builder->CreateInBoundsGEP(outer_world_type, world, {builder->getInt32(0), x, y}, "wp_ptr");
+}
+
+llvm::Value* VisitorImpl::load_x()
+{
+    auto x = module->getNamedGlobal("x");
+    return builder->CreateLoad(builder->getInt32Ty(), x, "x");
+}
+
+llvm::Value* VisitorImpl::load_y()
+{
+    auto y = module->getNamedGlobal("y");
+    return builder->CreateLoad(builder->getInt32Ty(), y, "y");
+}
+
+void VisitorImpl::create_increment_fn()
+{
+    increment_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                          llvm::GlobalValue::LinkageTypes::ExternalLinkage, "increment", *module);
+    auto body = llvm::BasicBlock::Create(*context, "entry", increment_fn);
+    builder->SetInsertPoint(body);
+
+    auto wp_ptr = load_world_point_ptr(load_x(), load_y());
+    auto wp = builder->CreateLoad(builder->getInt32Ty(), wp_ptr, "wp");
+    auto add = builder->CreateAdd(wp, builder->getInt32(1));
+    (void)builder->CreateStore(add, wp_ptr);
+    (void)builder->CreateRetVoid();
+}
+
+void VisitorImpl::create_decrement_fn()
+{
+    decrement_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                          llvm::GlobalValue::LinkageTypes::ExternalLinkage, "decrement", *module);
+    auto body = llvm::BasicBlock::Create(*context, "entry", decrement_fn);
+    builder->SetInsertPoint(body);
+
+    auto wp_ptr = load_world_point_ptr(load_x(), load_y());
+    auto wp = builder->CreateLoad(builder->getInt32Ty(), wp_ptr, "wp");
+    auto sub = builder->CreateSub(wp, builder->getInt32(1));
+    (void)builder->CreateStore(sub, wp_ptr);
+    (void)builder->CreateRetVoid();
+}
+
+void VisitorImpl::create_move_left_fn()
+{
+    move_left_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                          llvm::GlobalValue::LinkageTypes::ExternalLinkage, "move_left", *module);
+    auto body = llvm::BasicBlock::Create(*context, "entry", move_left_fn);
+    builder->SetInsertPoint(body);
+
+    auto sub = builder->CreateSub(load_x(), builder->getInt32(1));
+    (void)builder->CreateStore(sub, module->getNamedGlobal("x"));
+    (void)builder->CreateRetVoid();
+}
+
+void VisitorImpl::create_move_right_fn()
+{
+    move_right_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                           llvm::GlobalVariable::LinkageTypes::ExternalLinkage, "move_right", *module);
+    auto body = llvm::BasicBlock::Create(*context, "entry", move_right_fn);
+    builder->SetInsertPoint(body);
+
+    auto add = builder->CreateAdd(load_x(), builder->getInt32(1));
+    (void)builder->CreateStore(add, module->getNamedGlobal("x"));
+    (void)builder->CreateRetVoid();
+}
+
+void VisitorImpl::create_move_down_fn()
+{
+    move_down_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                          llvm::GlobalVariable::LinkageTypes::ExternalLinkage, "move_down", *module);
+    auto body = llvm::BasicBlock::Create(*context, "enty", move_down_fn);
+    builder->SetInsertPoint(body);
+
+    auto sub = builder->CreateSub(load_y(), builder->getInt32(1));
+    (void)builder->CreateStore(sub, module->getNamedGlobal("y"));
+    (void)builder->CreateRetVoid();
+}
+
+void VisitorImpl::create_move_up_fn()
+{
+    move_up_fn = llvm::Function::Create(llvm::FunctionType::get(builder->getVoidTy(), false),
+                                        llvm::GlobalVariable::LinkageTypes::ExternalLinkage, "move_up", *module);
+    auto body = llvm::BasicBlock::Create(*context, "entry", move_up_fn);
+    builder->SetInsertPoint(body);
+
+    auto add = builder->CreateAdd(load_y(), builder->getInt32(1));
+    (void)builder->CreateStore(add, module->getNamedGlobal("y"));
+    (void)builder->CreateRetVoid();
+}
+
 } // namespace bf2
